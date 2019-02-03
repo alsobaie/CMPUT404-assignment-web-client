@@ -22,10 +22,30 @@ import sys
 import socket
 import re
 # you may use urllib to encode data appropriately
-import urllib.parse
+from urllib.parse import urlparse # for parsing urls
 
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
+
+def parse_url(url):
+    hostname = ""
+    port = 80
+
+    parsed_url = urlparse(url)
+    hostname = parsed_url.hostname
+
+    if(parsed_url.port != None):
+        port = parsed_url.port
+
+    return (hostname, port)
+
+def make_httprequest(command, url):
+    httprequest = ""
+    httpversion = "HTTP/1.1"
+
+    httprequest = "{} {} {}".format(command, url, httpversion)
+
+    return httprequest
 
 class HTTPResponse(object):
     def __init__(self, code=200, body=""):
@@ -35,19 +55,33 @@ class HTTPResponse(object):
 class HTTPClient(object):
     #def get_host_port(self,url):
 
+
     def connect(self, host, port):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((host, port))
         return None
 
     def get_code(self, data):
-        return None
+        code = 500
+
+        data_list = data.split()
+        code = data_list[1]
+
+        return code
 
     def get_headers(self,data):
         return None
 
     def get_body(self, data):
-        return None
+        body = ""
+        i = 0
+
+        while(i < len(data)):
+            if(data[i:i+7] == "\r\n\r\n"):
+                body = data[i+7:]
+            i += 1
+
+        return body
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -70,6 +104,24 @@ class HTTPClient(object):
     def GET(self, url, args=None):
         code = 500
         body = ""
+        http_get_request = ""
+        
+        hostname, port = parse_url(url)
+     
+        self.connect(hostname, port)
+
+        http_get_request += make_httprequest("GET", url)
+
+        self.socket.sendall(http_get_request.encode())
+        self.socket.shutdown(socket.SHUT_WR)
+
+        http_response = self.recvall(self.socket)
+   
+        code = self.get_code(http_response)
+        body = self.get_body(http_response)
+
+        self.socket.close()
+        
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
@@ -82,6 +134,9 @@ class HTTPClient(object):
             return self.POST( url, args )
         else:
             return self.GET( url, args )
+
+
+
     
 if __name__ == "__main__":
     client = HTTPClient()
