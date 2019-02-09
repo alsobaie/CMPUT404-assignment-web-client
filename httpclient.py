@@ -27,33 +27,12 @@ from urllib.parse import urlparse # for parsing urls
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
 
-def parse_url(url):
-    hostname = ""
-    port = 80
-
-    parsed_url = urlparse(url)
-    hostname = parsed_url.hostname
-
-    if(parsed_url.port != None):
-        port = parsed_url.port
-
-    return (hostname, port)
-
-def make_httprequest(command, url):
-    httprequest = ""
-    httpversion = "HTTP/1.1"
-
-    httprequest = "{} {} {}".format(command, url, httpversion)
-
-    return httprequest
-
 class HTTPResponse(object):
     def __init__(self, code=200, body=""):
         self.code = code
         self.body = body
 
 class HTTPClient(object):
-    #def get_host_port(self,url):
 
 
     def connect(self, host, port):
@@ -65,7 +44,7 @@ class HTTPClient(object):
         code = 500
 
         data_list = data.split()
-        code = data_list[1]
+        code = int(data_list[1])
 
         return code
 
@@ -77,12 +56,12 @@ class HTTPClient(object):
         i = 0
 
         while(i < len(data)):
-            if(data[i:i+7] == "\r\n\r\n"):
-                body = data[i+7:]
+            if(data[i:i+4] == "\r\n\r\n"):
+                body = data[i+4:]
             i += 1
 
         return body
-    
+
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
         
@@ -101,22 +80,41 @@ class HTTPClient(object):
                 done = not part
         return buffer.decode('utf-8')
 
-    def GET(self, url, args=None):
+    def make_httprequest(self, command, url):
+        httprequest = ""
+        httpversion = "HTTP/1.1"
+        parsed_url = urlparse(url)
+        host = "localhost:{}".format(80 if(parsed_url.port == None) else parsed_url.port)
+        content_length = 0
+        method = ""
+        headers = "Host: {}\r\nContent-Length: {}".format(host, content_length)
+        body = ""
+
+        if(command == "GET"):
+            method = "{} {} {}".format(command, url, httpversion)
+        elif(command == "POST"):
+            method = "{} {} {}".format(command, url, httpversion)
+            body = parsed_url.query
+
+        httprequest = "{}\r\n{}\r\n\r\n{}".format(method, headers, body)
+
+        return httprequest
+
+    def get_response(self, request, url):
         code = 500
         body = ""
-        http_get_request = ""
+        parsed_url = urlparse(url)
         
-        hostname, port = parse_url(url)
+        hostname = parsed_url.hostname
+        port = 80 if(parsed_url.port == None) else int(parsed_url.port)
      
         self.connect(hostname, port)
 
-        http_get_request += make_httprequest("GET", url)
-
-        self.socket.sendall(http_get_request.encode())
+        self.socket.sendall(request.encode())
         self.socket.shutdown(socket.SHUT_WR)
 
         http_response = self.recvall(self.socket)
-   
+
         code = self.get_code(http_response)
         body = self.get_body(http_response)
 
@@ -124,10 +122,13 @@ class HTTPClient(object):
         
         return HTTPResponse(code, body)
 
+    def GET(self, url, args=None):
+        http_get_request = self.make_httprequest("GET", url)
+        return self.get_response(http_get_request, url)
+
     def POST(self, url, args=None):
-        code = 500
-        body = ""
-        return HTTPResponse(code, body)
+        http_post_request = self.make_httprequest("POST", url)
+        return self.get_response(http_post_request, url)
 
     def command(self, url, command="GET", args=None):
         if (command == "POST"):
@@ -135,16 +136,15 @@ class HTTPClient(object):
         else:
             return self.GET( url, args )
 
-
-
     
 if __name__ == "__main__":
     client = HTTPClient()
-    command = "GET"
     if (len(sys.argv) <= 1):
         help()
         sys.exit(1)
     elif (len(sys.argv) == 3):
+        command.init( sys.argv[2] )
         print(client.command( sys.argv[2], sys.argv[1] ))
     else:
+        command.init( sys.argv[1] )
         print(client.command( sys.argv[1] ))
